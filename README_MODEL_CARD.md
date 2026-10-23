@@ -6,179 +6,133 @@ pipeline_tag: text-generation
 tags:
 - causal-lm
 - dense-transformer
-- gpt-style
-- anthropic-style
 - sft
-- dpo
+- chat
 - h100
 - runpod
-- chat
-base_model: Phase-Technologies/densy-330m-pretrain
+base_model: Phase-Technologies/hensy-330m-pretrain
 ---
 
-# Densy-330M-Chat: Pure Dense Causal Transformer Architecture
+# Hensy-330M-SFT (Instruction Aligned Assistant)
 
 <div align="center">
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/)
 [![Parameters](https://img.shields.io/badge/Parameters-328.5M%20Total%20%7C%20Dense-green.svg)]()
+[![Base Model](https://img.shields.io/badge/Base-5.0B%20Pretrain-purple.svg)](https://huggingface.co/Phase-Technologies/hensy-330m-pretrain)
 [![Hardware](https://img.shields.io/badge/Trained%20On-4%C3%97%20NVIDIA%20H100%2080GB%20SXM5-76B900.svg?logo=nvidia)]()
-[![Tokens](https://img.shields.io/badge/Pretrained%20On-15.0%20Billion%20Tokens-purple.svg)]()
-[![Alignment](https://img.shields.io/badge/Alignment-SFT%20%2B%20DPO-orange.svg)]()
+[![SFT Volume](https://img.shields.io/badge/SFT-20M%20Tokens-orange.svg)]()
 
 </div>
 
 ---
 
-## ⚡ Executive Summary
+## ⚡ Overview
 
-**Densy-330M-Chat** is an open-source, pure dense causal transformer language model designed and trained from scratch by **Phase Technologies**. Unlike recent hybrid or mixture-of-experts architectures, Densy is built on the classic, battle-tested dense Anthropic/GPT foundation:
+**Hensy-330M-SFT** is the conversational instruction-aligned checkpoint of **Hensy-330M**, a pure dense causal transformer pretrained from scratch across **5.00 Billion tokens** on a 4× NVIDIA H100 80GB SXM5 NVLink cluster. 
 
-* **Zero MoE routing overhead**: 100% of the parameters participate in every forward and backward pass.
-* **Rotary Position Embeddings (RoPE)** with FlashAttention / Scaled Dot-Product Attention (SDPA).
-* **Weight Tying**: Shared embeddings between input token representations and the output projection head, saving memory and accelerating vocabulary learning across a massive **206,464-token** vocabulary.
-* **End-to-End Pipeline**: Pretrained on **15.00 Billion tokens** from raw scratch, fine-tuned with **Supervised Fine-Tuning (SFT)** on dialogue traces with loss masking, and polished using **Direct Preference Optimization (DPO)**.
+Post-training was performed via **Supervised Fine-Tuning (SFT)** across 20 Million tokens of multi-turn conversational dialogue with per-token assistant loss masking.
 
----
-
-## 📐 Model Architecture Specifications
-
-| Specification | Value | Technical Detail |
-| :--- | :--- | :--- |
-| **Total Parameters** | **328,508,928 (328.5M)** | Exact parameter count (Storage: ~657 MB in BF16) |
-| **Active Parameters** | **328.5M (100%)** | Fully dense architecture (no sparsity, no MoE routing) |
-| **Hidden Dimension ($d_{\text{model}}$)** | **768** | Intermediate hidden state representation |
-| **Transformer Layers ($n_{\text{layers}}$)** | **24** | 24 identical Pre-LayerNorm Transformer blocks |
-| **Attention Heads ($n_{\text{heads}}$)** | **12** | 12 heads, 64-dim per head ($d_{\text{head}} = 64$) |
-| **MLP Expansion Dimension** | **3,072** | $4 \times d_{\text{model}}$ with GeLU (tanh approximation) |
-| **Context Window ($seq\_len$)** | **4,096 tokens** | Scalable rotary position context |
-| **Vocabulary Size** | **206,464** | CRAYON Turbo BPE vocabulary |
-| **Weight Tying** | **Enabled** | Embedding matrix tied to LM Head ($206{,}464 \times 768 = 158.6\text{M}$ weights) |
-
-```
-                       Input Tokens (B, T)
-                                │
-                                ▼
-               [Token Embedding (206,464 × 768, Tied)]
-                                │
-          ┌─────────────────────┴─────────────────────┐
-          │  Block 0 .. 23 (24 Identical Layers):     │
-          │   ├─ Pre-LayerNorm (d=768)                │
-          │   ├─ Multi-Head Attention (12 Heads, RoPE)│
-          │   │   └─ FlashAttention-2 / SDPA          │
-          │   ├─ Residual Add                         │
-          │   ├─ Pre-LayerNorm (d=768)                │
-          │   ├─ Dense MLP (768 → 3072 → 768, GeLU)   │
-          │   └─ Residual Add                         │
-          └─────────────────────┬─────────────────────┘
-                                ▼
-                       [Final LayerNorm (768)]
-                                │
-                                ▼
-                 [Tied LM Projection Head (206,464)]
-                                │
-                                ▼
-                          Output Logits
-```
+- **Base Model**: Initialized from [Phase-Technologies/hensy-330m-pretrain](https://huggingface.co/Phase-Technologies/hensy-330m-pretrain) (5.0B tokens).
+- **Architecture**: 24 Pre-LayerNorm Transformer layers, 768 hidden dimension, 12 attention heads with RoPE and SDPA, 206,464 vocabulary (CRAYON Turbo), weight tying.
+- **Precision**: Native BF16 with Safetensors support.
 
 ---
 
-## 🛠️ Complete Training Chronology
+## 🚀 Readymade 1-Click Google Colab Code
 
-The model was developed, pretrained, and aligned directly on high-performance cloud hardware:
-
-### 1. Pretraining (15.00 Billion Tokens)
-* **Compute Cluster**: 4× NVIDIA H100 80GB HBM3 (SXM5) connected via NVLink on RunPod.
-* **Global Batch Size**: 4,194,304 tokens per step (Sequence length: 4,096; Micro-batch per GPU: 8; Gradient accumulation: 32).
-* **Hardware Throughput**: **~582,000 tokens/second** sustained across the cluster.
-* **Total Steps**: 3,576 optimizer steps.
-* **Optimizer**: Fused AdamW ($\beta_1=0.9, \beta_2=0.95, \epsilon=10^{-8}$, weight decay 0.1) with Cosine Learning Rate Decay ($3\times 10^{-4} \to 3\times 10^{-5}$).
-* **Tokens Seen**: Exactly **15,000,000,000 tokens** from pretokenized web, code, and academic text shards (`Phase-Technologies/forge-3b-pretrain-data`).
-
-### 2. Supervised Fine-Tuning (SFT)
-* **Dataset**: `Phase-Technologies/forge-3b-sft-data` (Multi-turn conversational dialogue with user/assistant role separation).
-* **Objective**: Masked cross-entropy (loss computed strictly on assistant response tokens, prompt tokens masked with `-100`).
-* **Volume**: 20,000,000 tokens (76 optimizer steps on 4× H100, completed in ~45 seconds).
-
-### 3. Direct Preference Optimization (DPO)
-* **Dataset**: `Phase-Technologies/forge-3b-dpo-data` (1,000 high-margin chosen/rejected pairs).
-* **Objective**: Reference-anchored implicit reward optimization ($\beta=0.1$) aligning helpfulness, reasoning clarity, and harmlessness.
-
----
-
-## 💻 Google Colab & Local Quickstart
-
-You can run Densy-330M-Chat on any Google Colab instance (even free T4 GPU or CPU) with zero external setup:
+Paste this **single cell** directly into any [Google Colab Notebook](https://colab.research.google.com/) (works on free T4 GPU or CPU):
 
 ```python
-# Install lightweight dependencies
+# 1. Install dependencies
 !pip install -q torch huggingface_hub xerv-crayon safetensors
 
+import sys
+import os
 import torch
+from pathlib import Path
 from huggingface_hub import hf_hub_download
 from safetensors.torch import load_file
 
-# 1. Download model files
-repo_id = "Phase-Technologies/Densy-330M-Chat"
-model_file = hf_hub_download(repo_id=repo_id, filename="model.py")
-config_file = hf_hub_download(repo_id=repo_id, filename="config.py")
-tok_file = hf_hub_download(repo_id=repo_id, filename="tokenizer/crayon_wrapper.py")
-weights_file = hf_hub_download(repo_id=repo_id, filename="model.safetensors")
+REPO_ID = "Phase-Technologies/hensy-330m-sft"
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DTYPE = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float32
 
-# 2. Import architecture
-import sys
+print(f"🚀 Initializing Hensy-330M-SFT on {DEVICE} ({DTYPE})...")
+
+# 2. Download architecture files & weights
+for f in ["config.py", "model.py"]:
+    if not Path(f).exists():
+        hf_hub_download(repo_id=REPO_ID, filename=f, local_dir=".")
+
+cfg_json = hf_hub_download(repo_id=REPO_ID, filename="final/model_config.json")
+st_path = hf_hub_download(repo_id=REPO_ID, filename="final/model.safetensors")
+
+# 3. Load model & tokenizer
 sys.path.insert(0, ".")
-from config import DensyConfig
-from model import build_densy_330m
+from config import HensyConfig
+from model import build_hensy_330m
 from tokenizer.crayon_wrapper import ForgeTokenizer
 
-# 3. Instantiate and load
-device = "cuda" if torch.cuda.is_available() else "cpu"
-dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
-
 tokenizer = ForgeTokenizer()
-cfg = DensyConfig()
-model = build_densy_330m(cfg)
-sd = load_file(weights_file)
-model.load_state_dict({k: v.to(dtype) for k, v in sd.items()}, strict=False)
-model = model.to(device).to(dtype).eval()
+cfg = HensyConfig.from_json(cfg_json)
+model = build_hensy_330m(cfg)
 
-# 4. Generate Chat Response
-prompt = "<|bos|><|usr|>What are three foundational principles of physics?<|asst|>"
-input_ids = torch.tensor([tokenizer.encode(prompt, add_bos=False, add_eos=False)], device=device)
+weights = load_file(st_path)
+weights = {k.replace("_orig_mod.", ""): v.to(DTYPE) for k, v in weights.items()}
+model.load_state_dict(weights, strict=False)
+model = model.to(DEVICE).to(DTYPE).eval()
+print("✅ Hensy-330M-SFT loaded cleanly and ready!\n")
 
-with torch.inference_mode():
-    output_ids = model.generate(input_ids, max_new_tokens=64, temperature=0.7)
+# 4. Interactive Chat Function
+def ask_hensy(prompt: str, max_new_tokens: int = 128, temperature: float = 0.7):
+    formatted = f"<|USR|>{prompt.strip()}<|/USR|>\n<|ASST|>"
+    input_ids = torch.tensor([tokenizer.encode(formatted, add_bos=False, add_eos=False)], device=DEVICE)
+    with torch.inference_mode():
+        if DEVICE == "cuda":
+            with torch.autocast(device_type="cuda", dtype=DTYPE):
+                out = model.generate(input_ids, max_new_tokens=max_new_tokens, temperature=temperature, repetition_penalty=1.15)
+        else:
+            out = model.generate(input_ids, max_new_tokens=max_new_tokens, temperature=temperature, repetition_penalty=1.15)
+    
+    reply = tokenizer.decode(out[0].tolist(), skip_special_tokens=False)
+    if "<|ASST|>" in reply:
+        reply = reply.split("<|ASST|>")[-1].replace("<|/ASST|>", "").replace("<|eos|>", "").strip()
+    return reply
 
-response = tokenizer.decode(output_ids[0].tolist(), skip_special_tokens=False)
-print(response)
+# Test immediate inference:
+print("User > What is machine learning?")
+print(f"Hensy > {ask_hensy('What is machine learning?')}\n")
+
+# Ask anything else:
+while True:
+    try:
+        user_input = input("You > ")
+        if user_input.strip().lower() in ("exit", "quit", "q"):
+            break
+        print(f"Hensy > {ask_hensy(user_input)}\n")
+    except KeyboardInterrupt:
+        break
 ```
 
 ---
 
-## 🏷️ Chat Prompt Template & Special Tokens
+## 🏷️ Chat Prompt Template
 
-| Token | Representation | Purpose |
-| :--- | :--- | :--- |
-| `<|bos|>` | `Token 1` | Beginning of sequence |
-| `<|eos|>` | `Token 2` | End of sequence / completion termination |
-| `<|usr|>` | `Token 4` | User conversational turn delimiter |
-| `<|asst|>` | `Token 5` | Assistant response turn delimiter |
-| `<|pad|>` | `Token 0` | Sequence padding |
-
-Format:
 ```text
-<|bos|><|usr|>Your question here<|asst|>Assistant response...<|eos|>
+<|USR|>Your message here<|/USR|>
+<|ASST|>Assistant response here...
 ```
 
 ---
 
 ## a note from the creator.....
 
-honestly when we set out to build densy we wanted to prove that pure, classic dense transformer architecture still has unmatched elegance and power when pushed to its limits..... after wrestling with complex mixture-of-experts routing and hybrid state space layers in our previous models, densy was our return to first principles: no gate networks, no expert balancing losses, no quadratic memory tricks—just 24 deep, pure dense layers weight-tied to a massive 206k vocabulary running wide open on 4x nvidia h100 sxm5 gpus at over 580,000 tokens every single second.....
+building hensy was our redemption arc and our return to discipline..... after uncovering the identity copy shortcut in our earlier experiments, we tore the training loop down to bare metal, fixed every single index shift and dtype promotion from first principles, and spun up 4x nvidia h100 sxm5s to run a clean, uncompromised 5 billion token pretrain from raw scratch.....
 
-watching the loss drop from 12 down across 15 billion tokens in runpod's datacenter was an unbelievable feeling..... training independent frontier-style models with limited personal budgets is terrifying and exhilarating all at once..... every single dollar counted, every step mattered, and when little bugs cropped up in our loss shifts or dataloaders we had to diagnose them in real time on live silicon with the clock ticking.....
+watching the loss drop smoothly from 12.4 down to 4.3 over 5 billion tokens at more than 565,000 tokens every second was the most rewarding sight of this entire journey..... following pretrain immediately with supervised fine-tuning cemented the turn-taking and conversational capability without needing heavy alignment crutches.....
 
-huge love and endless gratitude to the runpod team for building the infrastructure that lets independent developers spin up multi-h100 nodes with a single click and actually train real models from scratch..... this journey has been exhausting, beautiful, and deeply humbling..... to everyone following along, experimenting with our models, or building their own architectures in bedrooms and dorms: never let compute monopolies convince you that you can't train from scratch..... i hope you enjoy talking with densy..... thank you for believing in this crazy dream.....
+endless gratitude and huge shoutout to the runpod.io team for providing the world-class infrastructure, blazing nvlink fabric, and uninterrupted stability that makes training real foundation models possible for independent builders on a personal budget..... to everyone reading this: build from first principles, check your loss gradients on live silicon, and keep pushing open source forward.....
 
 — soham pal (phase technologies)

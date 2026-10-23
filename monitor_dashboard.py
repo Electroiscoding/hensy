@@ -58,7 +58,7 @@ def get_live_gpu_data():
                 avg_util += util
 
                 gpus.append({
-                    "idx": idx,
+                    "index": idx,
                     "name": name,
                     "mem_used_mb": mem_used,
                     "mem_total_mb": mem_total,
@@ -445,7 +445,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <div class="hf-banner">
         <div>
             <span style="font-size:14px; font-weight:700; color:#fbbf24;">🤗 Hugging Face Hub Auto-Sync: </span>
-            <a id="hf-link" href="https://huggingface.co/Phase-Technologies/densy-330m-pretrain" target="_blank">Phase-Technologies/densy-330m-pretrain</a>
+            <a id="hf-link" href="https://huggingface.co/Phase-Technologies/hensy-330m-pretrain" target="_blank">Phase-Technologies/hensy-330m-pretrain</a>
         </div>
         <div style="font-size:12px; color:var(--text-2);">
             Sync Status: <b style="color:#10b981;">Active Daemon (Every 10s)</b> • Uploaded: <b id="hf-synced-count" style="color:#38bdf8;">0 ckpts</b>
@@ -466,7 +466,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         </div>
 
         <div class="stat-card">
-            <div class="stat-title">Dataset Progress (15B Target)</div>
+            <div class="stat-title">Dataset Progress (5B Target)</div>
             <div class="stat-value" id="progress-val" style="font-size:20px; color:#f8fafc;">--</div>
             <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
             <div class="stat-sub" style="margin-top:6px;" id="progress-sub">ETA: Calculating...</div>

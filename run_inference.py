@@ -26,7 +26,12 @@ def main():
 
     from tokenizer.crayon_wrapper import ForgeTokenizer
     tok_dir = model_dir / "tokenizer"
-    tokenizer = ForgeTokenizer.from_pretrained(str(tok_dir) if tok_dir.exists() else str(model_dir))
+    if (tok_dir / "tokenizer_config.json").exists():
+        tokenizer = ForgeTokenizer.from_pretrained(str(tok_dir))
+    elif (model_dir / "tokenizer_config.json").exists():
+        tokenizer = ForgeTokenizer.from_pretrained(str(model_dir))
+    else:
+        tokenizer = ForgeTokenizer()
 
     from config import HensyConfig
     from model import build_hensy_330m
